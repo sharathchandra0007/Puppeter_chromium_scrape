@@ -1,0 +1,33 @@
+D# --------- Scraper Stage ---------
+FROM node:18-slim AS scraper
+
+RUN apt-get update && apt-get install -y \
+    chromium \
+    chromium-common \
+    fonts-liberation \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package.json ./
+RUN npm install
+COPY scrape.js ./
+
+# Set environment variable for the SCRAPE_URL argument
+ARG SCRAPE_URL
+ENV SCRAPE_URL=${SCRAPE_URL}
+
+# Run the scraper
+RUN node scrape.js
+
+# --------- Hosting Stage ---------
+FROM python:3.10-slim as hosting
+
+WORKDIR /app
+COPY --from=scraper /app/scraped_data.json /app/
+COPY --from=scraper /app/screenshot.png /app/
+
+RUN pip install Flask
+
+COPY server.py /app/
+
+CMD ["python", "server.py"]
